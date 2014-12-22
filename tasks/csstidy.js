@@ -43,7 +43,7 @@ module.exports = function (grunt) {
              * .a { background: url("data:image/png;base64,iVBOMVEX///////////////+g0jAqu8zdII=");} 
              *
              */
-            cssSrc = cssSrc.replace(/(?:data)(.*)(?=\))/g, function(match){
+            cssSrc = cssSrc.replace(/data[\s\S]+?\)/g, function(match){
                 match = match.replace(/:/g, '#tidy3#');
                 match = match.replace(/;/g, '#tidy4#');
                 match = match.replace(/\//g, '#tidy5#');
@@ -63,23 +63,29 @@ module.exports = function (grunt) {
             /*
              * fix single comment like:  // something 
              * It can't works in IE, and will cause parse error
-             *
+             * update: handle single line for compressive case
              */
             cssSrc = cssSrc.replace(/(^|[^:|'|"|\(])\/\/.+?(?=\n|\r|$)/g, function(match){
-                var targetMatch;
-                //handle first line
-                if (match.charAt(0) !== '/' ) {
-                    // remove first string and / and \ 
-                    targetMatch = match.substr(1).replace(/\\|\//g, '');;
-                    return match.charAt(0) + '/*' + targetMatch + '*/';
+                // Handle compressive file
+                if (match.indexOf('{') === -1 || match.indexOf('}') === -1) {
+                    var targetMatch;
+
+                    //handle first line
+                    if (match.charAt(0) !== '/' ) {
+                        // remove first string and / and \ 
+                        targetMatch = match.substr(1).replace(/\\|\//g, '');
+                        return match.charAt(0) + '/*' + targetMatch + '*/';
+                    } else {
+                        targetMatch = match.replace(/\\|\//g, '');
+                        return '/*' + targetMatch + '*/';
+                    }
                 } else {
-                    targetMatch = match.replace(/\\|\//g, '');
-                    return '/*' + targetMatch + '*/';
+                    throw new Error('There maybe some single comment // in this file.');
                 }
             });
 
             return cssSrc;
-    }
+        }
 
     // after handle src, recover special string
     function afterHandleSrc (content) {
@@ -90,6 +96,11 @@ module.exports = function (grunt) {
         content = content.replace(/#tidy4#/g, ';');
         content = content.replace(/#tidy5#/g, '/');
         content = content.replace(/#tidy6#/g, '//');
+
+        // handle compressive css file 
+        content = content.replace(/(\}|\*\/)(?!\r|\n)/g, function(match){
+            return match + '\n';
+        });
 
         return content;
     }
@@ -144,7 +155,7 @@ module.exports = function (grunt) {
                     // remove ^M and fix newLine issue in windows
                     if (process.platform === 'win32') {
                         content = content.replace(/\r/g, '');
-                        content = content.replace(/\n/g, '\r\n');
+                        /* content = content.replace(/\n/g, '\r\n'); */
                     }
 
                     grunt.file.write(dest, content);
@@ -156,3 +167,4 @@ module.exports = function (grunt) {
         });
     });
 };
+
